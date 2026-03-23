@@ -4,7 +4,7 @@ import requests
 app = Flask(__name__)
 
 @app.route('/')
-def hello_bud():
+def hello_lad():
     api_url = 'https://dog.ceo/api/breeds/image/random'
     response = requests.get(api_url)
     data = response.json()
