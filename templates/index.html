@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dog Breed Explorer</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 500px;
+      margin: 60px auto;
+      padding: 0 1rem;
+      background: #f5f5f3;
+      color: #1a1a18;
+    }
+    h1 { text-align: center; margin-bottom: 6px; }
+    p.sub { text-align: center; color: #666; margin-bottom: 24px; font-size: 14px; }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    select {
+      width: 100%; padding: 10px; font-size: 15px;
+      border-radius: 8px; border: 1px solid #bbb; margin-bottom: 12px;
+    }
+    .btn-row { display: flex; gap: 10px; }
+    button {
+      flex: 1; padding: 10px; font-size: 14px;
+      border-radius: 8px; border: 1px solid #bbb;
+      background: #fff; cursor: pointer;
+    }
+    button.primary {
+      background: #185FA5; color: #fff; border-color: #185FA5;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #imgArea {
+      text-align: center; min-height: 150px;
+      display: flex; align-items: center;
+      justify-content: center; color: #888; font-size: 14px;
+    }
+    #dogImg { max-width: 100%; border-radius: 8px; display: none; }
+    .msg { font-size: 13px; margin-top: 10px; text-align: center; color: #3B6D11; }
+    .msg.err { color: #A32D2D; }
+    .saved-list { list-style: none; padding: 0; margin: 0; }
+    .saved-list li {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 0; border-bottom: 1px solid #f0eeea; font-size: 13px;
+    }
+    .saved-list li:last-child { border-bottom: none; }
+    .saved-list img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+<h1>🐶 Dog Breed Explorer</h1>
+<p class="sub">Pick a breed, fetch a photo, save it!</p>
+
+<div class="card">
+  <select id="breedSelect">
+    <option value="">— choose a breed —</option>
+    {% for breed in breeds %}
+    <option value="{{ breed }}">{{ breed | capitalize }}</option>
+    {% endfor %}
+  </select>
+  <div class="btn-row">
+    <button onclick="fetchImage()">Fetch photo</button>
+    <button class="primary" id="saveBtn" disabled onclick="saveImage()">
+      Save to database
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <div id="imgArea">Select a breed above to see a photo</div>
+  <img id="dogImg" alt="Dog photo" />
+  <div id="msg" class="msg" style="display:none"></div>
+</div>
+
+<div class="card">
+  <strong style="font-size:13px;color:#666;">Recently saved</strong>
+  <ul class="saved-list" id="savedList" style="margin-top:10px">
+    <li><span style="color:#999;font-size:13px">No images saved yet</span></li>
+  </ul>
+</div>
+
+<script>
+  let currentBreed = '';
+  let currentUrl = '';
+
+  async function fetchImage() {
+    const breed = document.getElementById('breedSelect').value;
+    if (!breed) return alert('Please select a breed first!');
+    currentBreed = breed;
+    currentUrl = '';
+    document.getElementById('saveBtn').disabled = true;
+    document.getElementById('dogImg').style.display = 'none';
+    document.getElementById('imgArea').textContent = 'Loading…';
+    document.getElementById('msg').style.display = 'none';
+
+    try {
+      const res = await fetch('/api/dog/' + encodeURIComponent(breed));
+      const data = await res.json();
+      if (data.status === 'ok') {
+        currentUrl = data.image_url;
+        const img = document.getElementById('dogImg');
+        img.onload = () => {
+          document.getElementById('imgArea').textContent = '';
+          img.style.display = 'block';
+          document.getElementById('saveBtn').disabled = false;
+        };
+        img.src = currentUrl;
+      } else {
+        document.getElementById('imgArea').textContent = 'Could not load image.';
+      }
+    } catch {
+      document.getElementById('imgArea').textContent = 'Network error — try again.';
+    }
+  }
+
+  async function saveImage() {
+    if (!currentBreed || !currentUrl) return;
+    document.getElementById('saveBtn').disabled = true;
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ breed: currentBreed, image_url: currentUrl })
+      });
+      const data = await res.json();
+      const msgEl = document.getElementById('msg');
+      msgEl.style.display = 'block';
+      if (data.status === 'ok') {
+        msgEl.className = 'msg';
+        msgEl.textContent = '✓ Saved to database!';
+        loadSaved();
+      } else {
+        msgEl.className = 'msg err';
+        msgEl.textContent = 'Save failed — try again.';
+        document.getElementById('saveBtn').disabled = false;
+      }
+    } catch {
+      document.getElementById('saveBtn').disabled = false;
+    }
+  }
+
+  async function loadSaved() {
+    try {
+      const res = await fetch('/api/saved');
+      const data = await res.json();
+      const list = document.getElementById('savedList');
+      if (!data.images || data.images.length === 0) {
+        list.innerHTML = '<li><span style="color:#999;font-size:13px">No images saved yet</span></li>';
+        return;
+      }
+      list.innerHTML = data.images.map(img => `
+        <li>
+          <img src="${img.image_url}" alt="${img.breed}" />
+          <div>
+            <div style="font-weight:600;text-transform:capitalize">${img.breed}</div>
+            <div style="color:#888;font-size:12px">${new Date(img.saved_at).toLocaleString()}</div>
+          </div>
+        </li>
+      `).join('');
+    } catch {}
+  }
+
+  loadSaved();
+</script>
+</body>
+</html>
