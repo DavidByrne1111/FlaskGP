@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
   build:
@@ -19,6 +19,14 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Install test tools
+        run: pip install pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: pytest test_app.py -v --cov=app --cov-report=term-missing
+        env:
+          DATABASE_URL: postgresql://fake:fake@localhost:5432/fake
 
       - name: Build Docker image
         run: docker build -t test-image .
