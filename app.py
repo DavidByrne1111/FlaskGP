@@ -60,7 +60,7 @@ def get_dog(breed):
         )
         data = response.json()
         return jsonify({"status": "ok", "breed": breed, "image_url": data["message"]})
-    except Exception as e:
+    except Exception:
         return jsonify({"status": "error", "message": "Dog API unavailable, please try again later"}), 502
 
 @app.route("/api/save", methods=["POST"])
