@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import requests
+import time
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -12,6 +13,17 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 BREEDS = ["bulldog", "labrador", "poodle", "beagle", "retriever"]
 
+def fetch_with_retry(url, retries=3, backoff=1, timeout=5):
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            if attempt < retries - 1:
+                time.sleep(backoff * (2 ** attempt))
+            else:
+                raise e
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
@@ -43,14 +55,13 @@ def get_dog(breed):
     if breed not in BREEDS:
         return jsonify({"status": "error", "message": "Invalid breed"}), 400
     try:
-        response = requests.get(
-            f"https://dog.ceo/api/breed/{breed}/images/random", timeout=5
+        response = fetch_with_retry(
+            f"https://dog.ceo/api/breed/{breed}/images/random"
         )
         data = response.json()
         return jsonify({"status": "ok", "breed": breed, "image_url": data["message"]})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 502
-
+    except Exception:
+        return jsonify({"status": "error", "message": "Dog API unavailable, please try again later"}), 502
 
 @app.route("/api/save", methods=["POST"])
 def save_image():
